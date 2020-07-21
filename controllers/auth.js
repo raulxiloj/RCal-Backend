@@ -1,6 +1,7 @@
 const { response } = require('express'); //Just to have the intellisense
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
+const { generateJWT } = require('../helpers/jwt');
 
 
 const createUser = async (req, res = response) => {
@@ -26,11 +27,15 @@ const createUser = async (req, res = response) => {
 
         await user.save();
 
+        //Generate token
+        const token = generateJWT(user.id, user.name);
+
         res.status(201).json({
             ok: true,
             uid: user.id,
-            name: user.name
-        })
+            name: user.name,
+            token
+        });
 
     } catch (e) {
         console.log(e);
@@ -42,14 +47,49 @@ const createUser = async (req, res = response) => {
 
 }
 
-const login = (req, res = response) => {
+const login = async (req, res = response) => {
 
     const { email, password } = req.body;
 
-    res.status(200).json({
-        ok: true,
-        msg: 'login'
-    })
+    try {
+
+        const user = await User.findOne({ email });
+
+        if (!user) {
+            return res.status(400).json({
+                ok: false,
+                msg: 'A user with that email is not register'
+            })
+        }
+
+        //Match passwords
+        const validPass = bcrypt.compareSync(password, user.password);
+
+        if (!validPass) {
+            return res.status(400).json({
+                ok: false,
+                msg: 'Incorrect password'
+            });
+        }
+
+        //Generate token
+        const token = generateJWT(user.id, user.name);
+
+        res.status(200).json({
+            ok: true,
+            uid: user.id,
+            name: user.name,
+            token
+        });
+
+    } catch (e) {
+        console.log(e);
+        res.status(500).json({
+            ok: false,
+            msg: 'Please contact the admin'
+        });
+    }
+
 }
 
 const renewToken = (req, res = response) => {
